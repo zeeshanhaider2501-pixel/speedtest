@@ -2,183 +2,117 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Internet Speed Test</title>
   <style>
-    :root {
-      --primary: #2563eb;
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --text: #111827;
-    }
     body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
       margin: 0;
-      font-family: system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-    }
-    .card {
-      background: var(--card);
-      padding: 2rem;
-      border-radius: 1rem;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-      width: 100%;
-      max-width: 480px;
+      padding: 0;
       text-align: center;
+      color: #333;
+    }
+    .container {
+      max-width: 500px;
+      margin: 50px auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
     h1 {
-      font-size: 1.5rem;
-      margin-bottom: 1rem;
+      margin-bottom: 20px;
+      color: #0078d7;
     }
     button {
-      background: var(--primary);
-      color: #fff;
+      padding: 12px 25px;
+      font-size: 16px;
+      background: #0078d7;
       border: none;
-      padding: 0.75rem 1.5rem;
-      border-radius: 0.5rem;
-      font-size: 1rem;
+      border-radius: 6px;
+      color: #fff;
       cursor: pointer;
     }
-    button:disabled {
-      background: #94a3b8;
-      cursor: not-allowed;
+    button:hover {
+      background: #005bb5;
     }
-    .metrics {
-      margin-top: 1.5rem;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
+    .results {
+      margin-top: 25px;
+      text-align: left;
     }
-    .metric {
-      background: #f1f5f9;
-      border-radius: 0.5rem;
-      padding: 1rem;
+    .results p {
+      font-size: 18px;
+      margin: 8px 0;
     }
-    .metric h2 {
-      margin: 0;
-      font-size: 1.25rem;
-      color: var(--primary);
-    }
-    .metric span {
-      font-size: 0.875rem;
-      color: #475569;
-    }
-    #status {
-      margin-top: 1rem;
-      font-size: 0.875rem;
-      color: #64748b;
+    .note {
+      font-size: 13px;
+      margin-top: 15px;
+      color: #777;
     }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="container">
     <h1>Internet Speed Test</h1>
-    <button id="startBtn">Start Test</button>
-    <div class="metrics">
-      <div class="metric">
-        <h2 id="download">--</h2>
-        <span>Download Mbps</span>
-      </div>
-      <div class="metric">
-        <h2 id="upload">--</h2>
-        <span>Upload Mbps</span>
-      </div>
-      <div class="metric">
-        <h2 id="ping">--</h2>
-        <span>Ping ms</span>
-      </div>
-      <div class="metric">
-        <h2 id="jitter">--</h2>
-        <span>Jitter ms</span>
-      </div>
+    <button onclick="startTest()">Start Test</button>
+    <div class="results">
+      <p><strong>Download:</strong> <span id="download">-</span> Mbps</p>
+      <p><strong>Upload:</strong> <span id="upload">Upload test not available in demo mode</span></p>
+      <p><strong>Ping:</strong> <span id="ping">-</span> ms</p>
     </div>
-    <div id="status">Idle</div>
+    <p class="note">⚠️ Results are estimates. For real upload & more accuracy, host your own server.</p>
   </div>
 
   <script>
-    const downloadEl = document.getElementById('download');
-    const uploadEl = document.getElementById('upload');
-    const pingEl = document.getElementById('ping');
-    const jitterEl = document.getElementById('jitter');
-    const statusEl = document.getElementById('status');
-    const startBtn = document.getElementById('startBtn');
+    // safe high-resolution timer
+    const now = () =>
+      (window.performance && typeof performance.now === "function")
+        ? performance.now()
+        : Date.now();
 
-    const servers = [
-      // public LibreSpeed servers (examples, can change)
-      { download: "https://speedtest.tele2.net/100MB.zip", upload: "https://librespeed.org/backend/empty.php", ping: "https://librespeed.org/backend/empty.php" }
-    ];
+    // Test servers (public demo endpoints)
+    const servers = {
+      download: "https://speed.cloudflare.com/__down?bytes=20000000", // ~20 MB file
+      ping: "https://speed.cloudflare.com/__down?bytes=100000"       // ~100 KB file
+    };
 
-    function now() {
-      return (window.performance && performance.now) ? performance.now() : Date.now();
+    async function measureDownload() {
+      const start = now();
+      const response = await fetch(servers.download + "&_=" + Math.random(), { cache: "no-store" });
+      const blob = await response.blob();
+      const end = now();
+
+      const duration = (end - start) / 1000; // seconds
+      const sizeMB = blob.size / (1024 * 1024); // MB
+      return (sizeMB / duration * 8).toFixed(2); // Mbps
     }
 
-    async function measurePing(url, count = 5) {
-      let times = [];
-      for (let i = 0; i < count; i++) {
-        let t0 = now();
-        try {
-          await fetch(url + "?cache=" + Math.random(), { method: "HEAD", cache: "no-store" });
-          let t1 = now();
-          times.push(t1 - t0);
-        } catch (e) {}
+    async function measurePing() {
+      const start = now();
+      await fetch(servers.ping + "&_=" + Math.random(), { cache: "no-store" });
+      const end = now();
+      return (end - start).toFixed(2);
+    }
+
+    async function startTest() {
+      document.getElementById("download").textContent = "Testing...";
+      document.getElementById("ping").textContent = "Testing...";
+
+      try {
+        const download = await measureDownload();
+        document.getElementById("download").textContent = download;
+      } catch (err) {
+        document.getElementById("download").textContent = "Error";
       }
-      let avg = times.reduce((a, b) => a + b, 0) / times.length;
-      let jitters = times.map((t, i, arr) => i ? Math.abs(t - arr[i - 1]) : 0);
-      let jitter = jitters.reduce((a, b) => a + b, 0) / jitters.length;
-      return { ping: avg.toFixed(1), jitter: jitter.toFixed(1) };
-    }
 
-    async function measureDownload(url, durationMs = 5000) {
-      let start = now(), loaded = 0;
-      const controller = new AbortController();
-      let resp = await fetch(url + "?cache=" + Math.random(), { signal: controller.signal });
-      const reader = resp.body.getReader();
-      while (true) {
-        let {done, value} = await reader.read();
-        if (done) break;
-        loaded += value.length;
-        if (now() - start > durationMs) {
-          controller.abort();
-          break;
-        }
+      try {
+        const ping = await measurePing();
+        document.getElementById("ping").textContent = ping;
+      } catch (err) {
+        document.getElementById("ping").textContent = "Error";
       }
-      let Mbps = (loaded * 8 / 1e6) / ((now() - start) / 1000);
-      return Mbps.toFixed(2);
     }
-
-    async function measureUpload(url, sizeMB = 10) {
-      let data = new Uint8Array(sizeMB * 1024 * 1024);
-      crypto.getRandomValues(data);
-      let start = now();
-      await fetch(url, {
-        method: "POST",
-        body: data,
-        headers: { "Content-Type": "application/octet-stream" }
-      });
-      let Mbps = (sizeMB * 8) / ((now() - start) / 1000);
-      return Mbps.toFixed(2);
-    }
-
-    startBtn.addEventListener('click', async () => {
-      startBtn.disabled = true;
-      statusEl.textContent = "Testing ping...";
-      const { ping, jitter } = await measurePing(servers[0].ping);
-      pingEl.textContent = ping;
-      jitterEl.textContent = jitter;
-
-      statusEl.textContent = "Testing download...";
-      downloadEl.textContent = await measureDownload(servers[0].download);
-
-      statusEl.textContent = "Testing upload...";
-      uploadEl.textContent = await measureUpload(servers[0].upload);
-
-      statusEl.textContent = "Done!";
-      startBtn.disabled = false;
-    });
   </script>
 </body>
 </html>
