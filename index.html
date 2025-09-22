@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Internet Speed Test</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #111827;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: var(--card);
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 480px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    button {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+    .metrics {
+      margin-top: 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .metric {
+      background: #f1f5f9;
+      border-radius: 0.5rem;
+      padding: 1rem;
+    }
+    .metric h2 {
+      margin: 0;
+      font-size: 1.25rem;
+      color: var(--primary);
+    }
+    .metric span {
+      font-size: 0.875rem;
+      color: #475569;
+    }
+    #status {
+      margin-top: 1rem;
+      font-size: 0.875rem;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Internet Speed Test</h1>
+    <button id="startBtn">Start Test</button>
+    <div class="metrics">
+      <div class="metric">
+        <h2 id="download">--</h2>
+        <span>Download Mbps</span>
+      </div>
+      <div class="metric">
+        <h2 id="upload">--</h2>
+        <span>Upload Mbps</span>
+      </div>
+      <div class="metric">
+        <h2 id="ping">--</h2>
+        <span>Ping ms</span>
+      </div>
+      <div class="metric">
+        <h2 id="jitter">--</h2>
+        <span>Jitter ms</span>
+      </div>
+    </div>
+    <div id="status">Idle</div>
+  </div>
+
+  <script>
+    const downloadEl = document.getElementById('download');
+    const uploadEl = document.getElementById('upload');
+    const pingEl = document.getElementById('ping');
+    const jitterEl = document.getElementById('jitter');
+    const statusEl = document.getElementById('status');
+    const startBtn = document.getElementById('startBtn');
+
+    const servers = [
+      // public LibreSpeed servers (examples, can change)
+      { download: "https://speedtest.tele2.net/100MB.zip", upload: "https://librespeed.org/backend/empty.php", ping: "https://librespeed.org/backend/empty.php" }
+    ];
+
+    function now() {
+      return (window.performance && performance.now) ? performance.now() : Date.now();
+    }
+
+    async function measurePing(url, count = 5) {
+      let times = [];
+      for (let i = 0; i < count; i++) {
+        let t0 = now();
+        try {
+          await fetch(url + "?cache=" + Math.random(), { method: "HEAD", cache: "no-store" });
+          let t1 = now();
+          times.push(t1 - t0);
+        } catch (e) {}
+      }
+      let avg = times.reduce((a, b) => a + b, 0) / times.length;
+      let jitters = times.map((t, i, arr) => i ? Math.abs(t - arr[i - 1]) : 0);
+      let jitter = jitters.reduce((a, b) => a + b, 0) / jitters.length;
+      return { ping: avg.toFixed(1), jitter: jitter.toFixed(1) };
+    }
+
+    async function measureDownload(url, durationMs = 5000) {
+      let start = now(), loaded = 0;
+      const controller = new AbortController();
+      let resp = await fetch(url + "?cache=" + Math.random(), { signal: controller.signal });
+      const reader = resp.body.getReader();
+      while (true) {
+        let {done, value} = await reader.read();
+        if (done) break;
+        loaded += value.length;
+        if (now() - start > durationMs) {
+          controller.abort();
+          break;
+        }
+      }
+      let Mbps = (loaded * 8 / 1e6) / ((now() - start) / 1000);
+      return Mbps.toFixed(2);
+    }
+
+    async function measureUpload(url, sizeMB = 10) {
+      let data = new Uint8Array(sizeMB * 1024 * 1024);
+      crypto.getRandomValues(data);
+      let start = now();
+      await fetch(url, {
+        method: "POST",
+        body: data,
+        headers: { "Content-Type": "application/octet-stream" }
+      });
+      let Mbps = (sizeMB * 8) / ((now() - start) / 1000);
+      return Mbps.toFixed(2);
+    }
+
+    startBtn.addEventListener('click', async () => {
+      startBtn.disabled = true;
+      statusEl.textContent = "Testing ping...";
+      const { ping, jitter } = await measurePing(servers[0].ping);
+      pingEl.textContent = ping;
+      jitterEl.textContent = jitter;
+
+      statusEl.textContent = "Testing download...";
+      downloadEl.textContent = await measureDownload(servers[0].download);
+
+      statusEl.textContent = "Testing upload...";
+      uploadEl.textContent = await measureUpload(servers[0].upload);
+
+      statusEl.textContent = "Done!";
+      startBtn.disabled = false;
+    });
+  </script>
+</body>
+</html>
